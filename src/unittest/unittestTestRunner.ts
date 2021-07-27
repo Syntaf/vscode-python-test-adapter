@@ -11,7 +11,7 @@ import { runScript } from '../pythonRunner';
 import { IDebugConfiguration, ITestRunner } from '../testRunner';
 import { empty } from '../utilities/collections';
 import { setDescriptionForEqualLabels } from '../utilities/tests';
-import { UNITTEST_TEST_RUNNER_SCRIPT } from './unittestScripts';
+import { DJANGO_MANAGE_WRAPPER, UNITTEST_TEST_RUNNER_SCRIPT } from './unittestScripts';
 import { parseTestStates, parseTestSuites } from './unittestSuitParser';
 
 export class UnittestTestRunner implements ITestRunner {
@@ -59,9 +59,9 @@ export class UnittestTestRunner implements ITestRunner {
 
         const result = await runScript({
             pythonPath: config.pythonPath(),
-            script: UNITTEST_TEST_RUNNER_SCRIPT,
-            args: ['discover', unittestArguments.startDirectory, unittestArguments.pattern],
+            script: DJANGO_MANAGE_WRAPPER(UNITTEST_TEST_RUNNER_SCRIPT('discover', unittestArguments.startDirectory, unittestArguments.pattern, '')),
             cwd: config.getCwd(),
+            args: [],
             environment: additionalEnvironment,
         }).complete();
 
@@ -93,13 +93,16 @@ export class UnittestTestRunner implements ITestRunner {
         this.logger.log('info', `Running tests using python path "${config.pythonPath()}" in ${config.getCwd()} ` +
             `with pattern ${unittestArguments.pattern} and start directory ${unittestArguments.startDirectory}`);
         const additionalEnvironment = await EnvironmentVariablesLoader.load(config.envFile(), process.env, this.logger);
+
+        const script = test !== this.adapterId ?
+            UNITTEST_TEST_RUNNER_SCRIPT('run', unittestArguments.startDirectory, unittestArguments.pattern, test) :
+            UNITTEST_TEST_RUNNER_SCRIPT('run', unittestArguments.startDirectory, unittestArguments.pattern, '')
+
         const testExecution = runScript({
             pythonPath: config.pythonPath(),
-            script: UNITTEST_TEST_RUNNER_SCRIPT,
+            script: DJANGO_MANAGE_WRAPPER(script),
             cwd: config.getCwd(),
-            args: test !== this.adapterId ?
-                ['run', unittestArguments.startDirectory, unittestArguments.pattern, test] :
-                ['run', unittestArguments.startDirectory, unittestArguments.pattern],
+            args: [],
             environment: additionalEnvironment,
         });
         this.testExecutions.set(test, testExecution);

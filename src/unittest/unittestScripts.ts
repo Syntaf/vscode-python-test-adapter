@@ -2,7 +2,31 @@
 
 export const TEST_RESULT_PREFIX = 'TEST_EXECUTION_RESULT';
 
-export const UNITTEST_TEST_RUNNER_SCRIPT = `
+export const DJANGO_MANAGE_WRAPPER = (script: string) => `
+import os
+import sys
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "testing.settings")
+try:
+    from django.core.management import execute_from_command_line
+except ImportError:
+    # The above import may fail for some other reason. Ensure that the
+    # issue is really that Django is missing to avoid masking other
+    # exceptions on Python 2.
+    try:
+        import django
+    except ImportError:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        )
+    raise
+
+execute_from_command_line(['manage.py', 'shell', '-c', """${script}"""])
+`;
+
+export const UNITTEST_TEST_RUNNER_SCRIPT = (action: string, startDirectory: string, pattern: string, test: string) => `
 from __future__ import print_function
 from unittest import TextTestRunner, TextTestResult, TestLoader, TestSuite, defaultTestLoader, util
 import sys
@@ -14,9 +38,8 @@ import traceback
 
 TEST_RESULT_PREFIX = '${TEST_RESULT_PREFIX}'
 
-STDOUT_LINE = '\\nStdout:\\n%s'
-STDERR_LINE = '\\nStderr:\\n%s'
-
+STDOUT_LINE = '\\\nStdout:\\\n%s'
+STDERR_LINE = '\\\nStderr:\\\n%s'
 
 def writeln(stream, value=None):
     if value:
@@ -82,12 +105,12 @@ class TextTestResultWithSuccesses(TextTestResult):
             output = sys.stdout.getvalue()
             error = sys.stderr.getvalue()
             if output:
-                if not output.endswith('\\n'):
-                    output += '\\n'
+                if not output.endswith('\\\n'):
+                    output += '\\\n'
                 msgLines.append(STDOUT_LINE % output)
             if error:
-                if not error.endswith('\\n'):
-                    error += '\\n'
+                if not error.endswith('\\\n'):
+                    error += '\\\n'
                 msgLines.append(STDERR_LINE % error)
         return ''.join(msgLines)
 
@@ -130,7 +153,7 @@ def get_python2_invalid_test(test):
         test.run(result)
         if not result.errors:
             return InvalidTest(get_invalid_test_name(test), "Failed to load test: " + test_class_name)
-        return InvalidTest(get_invalid_test_name(test), "\\n".join(list(map(lambda e: e[1], result.errors))))
+        return InvalidTest(get_invalid_test_name(test), "\\\n".join(list(map(lambda e: e[1], result.errors))))
     return None
 
 
@@ -153,7 +176,7 @@ def check_test_ids(tests):
             valid_tests.append(test)
         except Exception as exception:
             name = util.strclass(test.__class__)
-            message = 'Failed to get test id: %s\\n%s' % (
+            message = 'Failed to get test id: %s\\\n%s' % (
                 name, traceback.format_exc())
             invalid_tests.append(InvalidTest(name, Exception(message)))
     return (valid_tests, invalid_tests)
@@ -197,9 +220,9 @@ def extract_errors(tests):
     return [{'class': test.test, 'message': str(test.exception)} for test in tests]
 
 
-action = sys.argv[1]
-start_directory = sys.argv[2]
-pattern = sys.argv[3]
+action = '${action}'
+start_directory = '${startDirectory}'
+pattern = '${pattern}'
 if action == "discover":
     valid_tests, invalid_tests = discover_tests(start_directory, pattern)
     print('==DISCOVERED TESTS BEGIN==')
@@ -207,7 +230,7 @@ if action == "discover":
                       'errors': extract_errors(invalid_tests)}))
     print('==DISCOVERED TESTS END==')
 elif action == "run":
-    run_tests(start_directory, pattern, sys.argv[4:])
+    run_tests(start_directory, pattern, ['${test}'])
 else:
     raise ValueError("invalid command: should be discover or run")
 `;
