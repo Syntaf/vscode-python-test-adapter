@@ -6,7 +6,7 @@ export const DJANGO_MANAGE_WRAPPER = (script: string) => `
 import os
 import sys
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "testing.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "shopventory.settings")
 try:
     from django.core.management import execute_from_command_line
 except ImportError:
